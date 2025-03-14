@@ -183,7 +183,6 @@ class DDPOptimizer:
         # Start optimization
         logging.info("Starting DDP optimization with J={:.2f}".format(last_cost))
         for i in range(self.max_iters):
-
             # Backwards pass
             Vx = self.hx(X[-1], x_goal).flatten()
             assert Vx.shape == (self.Nx,)
@@ -245,31 +244,44 @@ class DDPOptimizer:
                 Vxx = Qxx - Qux.T @ Quu_inv @ Qux
                 assert Vxx.shape == (self.Nx, self.Nx)
 
-            # forward pass with backtracking
-            for k, alpha in enumerate(self.alphas):
-                X_star = np.zeros_like(X)
-                U_star = np.zeros_like(U)
-                X_star[0] = X[0].copy()
-                for t in range(N):
-                    error = X_star[t] - X[t]
-                    U_star[t] = U[t] - inv(Quus[t]) @ (alpha * Qus[t] + Quxs[t] @ error)
-                    X_star[t + 1] = self.f(X_star[t], U_star[t]).flatten()
+            # # forward pass with backtracking
+            # for k, alpha in enumerate(self.alphas):
+            #     X_star = np.zeros_like(X)
+            #     U_star = np.zeros_like(U)
+            #     X_star[0] = X[0].copy()
+            #     for t in range(N):
+            #         error = X_star[t] - X[t]
+            #         U_star[t] = U[t] - inv(Quus[t]) @ (alpha * Qus[t] + Quxs[t] @ error)
+            #         X_star[t + 1] = self.f(X_star[t], U_star[t]).flatten()
 
-                # update cost metric to see if we're doing well
-                total_cost = J(X_star, U_star)
-                if total_cost < last_cost:
-                    logging.info(
-                        "Accepting new solution with J={:} alpha={:.2f} and {:} backtracks".format(
-                            total_cost, alpha, k
-                        )
-                    )
-                    X = X_star
-                    U = U_star
-                    break
+            #     # update cost metric to see if we're doing well
+            #     total_cost = J(X_star, U_star)
+            #     last_cost
+            #     if total_cost < last_cost:
+            #         logging.info(
+            #             "Accepting new solution with J={:} alpha={:.2f} and {:} backtracks".format(
+            #                 total_cost, alpha, k
+            #             )
+            #         )
+            #         X = X_star
+            #         U = U_star
+            #         break
 
-                if alpha == self.alphas[-1]:
-                    logging.warn("Reached final alpha")
-                    done = True
+            #     if alpha == self.alphas[-1]:
+            #         logging.warn("Reached final alpha")
+            #         done = True
+
+            alpha = 1.0
+            X_star = np.zeros_like(X)
+            U_star = np.zeros_like(U)
+            X_star[0] = X[0].copy()
+            
+            for t in range(N):
+                error = X_star[t] - X[t]
+                U_star[t] = U[t] - inv(Quus[t]) @ (alpha * Qus[t] + Quxs[t] @ error)
+                X_star[t + 1] = self.f(X_star[t], U_star[t]).flatten()
+            total_cost = J(X_star, U_star)
+            U = U_star.copy()
 
             if full_output:
                 X_hist.append(X.copy())
@@ -278,9 +290,12 @@ class DDPOptimizer:
 
             # check for convergence at the end of the optimization cylcle
             if done or abs(last_cost - total_cost) < self.tolerance:
+                print(last_cost)
+                print(total_cost)
+                input('h2')
                 break
             last_cost = total_cost
-
+            print(last_cost)
         time_taken = time() - start
         logging.info("Converged in {:}/{:} iterations".format(i, self.max_iters))
         logging.info("Total optimzation time {:.2f}".format(time_taken))
