@@ -20,7 +20,7 @@ class DDPOptimizer:
         inst_cost: Callable,
         terminal_cost: Callable,
         tolerance: float = 1e-5,
-        max_iters: int = 200,
+        max_iters: int = 400,
         with_hessians: bool = False,
         constrain: bool = False,
         alphas: ArrayLike = [1.0],
@@ -271,31 +271,34 @@ class DDPOptimizer:
             #         logging.warn("Reached final alpha")
             #         done = True
 
-            alpha = 1.0
             X_star = np.zeros_like(X)
             U_star = np.zeros_like(U)
             X_star[0] = X[0].copy()
-            
+            # import warnings
+            # warnings.simplefilter('error')
+            gamma = 0.2
+            alpha = 0.3
             for t in range(N):
                 error = X_star[t] - X[t]
-                U_star[t] = U[t] - inv(Quus[t]) @ (alpha * Qus[t] + Quxs[t] @ error)
+                try:
+                    # test1 = (inv(Quus[t]) @ (Quxs[t] @ error))
+                    U_star[t] = U[t] - gamma * (inv(Quus[t]) @ (alpha * Qus[t] + Quxs[t] @ error))
+                except RuntimeWarning:
+                    input('ERROR')
                 X_star[t + 1] = self.f(X_star[t], U_star[t]).flatten()
             total_cost = J(X_star, U_star)
+            X = X_star.copy()
             U = U_star.copy()
 
             if full_output:
                 X_hist.append(X.copy())
                 U_hist.append(U.copy())
                 cost_hist.append(total_cost)
-
+            print(total_cost)
             # check for convergence at the end of the optimization cylcle
             if done or abs(last_cost - total_cost) < self.tolerance:
-                print(last_cost)
-                print(total_cost)
-                input('h2')
                 break
             last_cost = total_cost
-            print(last_cost)
         time_taken = time() - start
         logging.info("Converged in {:}/{:} iterations".format(i, self.max_iters))
         logging.info("Total optimzation time {:.2f}".format(time_taken))

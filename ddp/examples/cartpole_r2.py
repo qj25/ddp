@@ -83,18 +83,18 @@ class CartPoleR2Env(gymnasium.Env[np.ndarray, Union[int, np.ndarray]]):
 
     metadata = {
         "render_modes": ["human", "rgb_array"],
-        "render_fps": 20,
+        "render_fps": 100,
     }
 
     def __init__(self, init_state=None, render_mode: Optional[str] = None):
         self.gravity = 9.8
         self.masscart = 1.0
-        self.masspole = 0.1
+        self.masspole = 0.01
         self.total_mass = self.masspole + self.masscart
-        self.length = 0.5  # actually half the pole's length
+        self.length = 0.25  # actually half the pole's length
         self.polemass_length = self.masspole * self.length
         self.force_mag = 10.0
-        self.tau = 0.05  # seconds between state updates
+        self.tau = 0.01  # seconds between state updates
         self.kinematics_integrator = "euler"
         self.friccoeff = [1, 0.05]
 
@@ -260,7 +260,7 @@ class CartPoleR2Env(gymnasium.Env[np.ndarray, Union[int, np.ndarray]]):
         if self.clock is None:
             self.clock = pygame.time.Clock()
 
-        world_width = self.x_threshold * 10
+        world_width = self.x_threshold * 2
         scale = self.screen_width / world_width
         polewidth = 10.0
         polelen = scale * (2 * self.length)

@@ -17,13 +17,13 @@ except ImportError:
 
 
 # dynamics parameters
-mp = 0.1
+mp = 0.01
 mc = 1.0
-l = 0.5
+l = 0.25
 # G = 9.80665
 G = 9.8
 # dt = 0.05
-dt = 0.02
+dt = 0.01
 friccoeff = [0.5, 0.05]
 
 # dynamics
@@ -65,34 +65,48 @@ def f(x, u, constrain=False):
     )
 
 
-# instantenious cost
+# instantaneous cost
 def g(x, u, x_goal):
-    error = x - x_goal
-    Q = np.eye(len(x))
-    Q[1, 1] = Q[3, 3] = 0.1
-    # R = 0.1 * np.eye(len(u))
-    a_cost = 0.25
-    ctrl_cost = 0.01*a_cost*a_cost*(sym.cosh(u[0]/a_cost)-1)
-    ctrl_cost = sym.Matrix([ctrl_cost])
+    # error = x - x_goal
+    # Q = np.eye(len(x))
+    # # # Q[0, 0] = 5000
+    # Q[0, 0] = 0
+    # Q[1, 1] = 0.1
+    # Q[2, 2] = 1.5
+    # Q[3, 3] = 0.1
+    # R = 15 * np.eye(len(u))
+    R = 0.3 * np.eye(len(u))
+    # a_cost = 0.25
+    # ctrl_cost = 0.01*a_cost*a_cost*(sym.cosh(u[0]/a_cost)-1)
+    # ctrl_cost = sym.Matrix([ctrl_cost])
     # print(type(error.T @ Q @ error))
     # print(type(sym.Matrix([ctrl_cost])))
-    return error.T @ Q @ error + ctrl_cost #+ u.T @ R @ u
+    # return error.T @ Q @ error + ctrl_cost
+    return u.T @ R @ u
+    # return error.T @ Q @ error + u.T @ R @ u
 
 
-# termination cost
+# final cost
 def h(x, x_goal):
     error = x - x_goal
     Q = 100 * np.eye(len(x))
+    # Q[0, 0] = 5000
+    Q[0, 0] = 100
+    Q[1, 1] = 100
+    Q[2, 2] = 15000
+    Q[3, 3] = 300
+
     return error.T @ Q @ error
 
 
 # trajectory parameters
-N = 100  # trajectory points
+max_iters = 400
+N = 500  # trajectory points
 Nx = 4  # state dimension
 Nu = 1  # control dimesions
 
 # starting state
-x0 = np.array([0.0, 0.0, 0.0, 0.0])
+x0 = np.array([0.0, 0.0, np.pi, 0.0])
 # x0 = np.array([0.0, 0.0, np.sin(0.0), np.cos(0.0), 0.0])
 
 # goal state we want to reach
@@ -107,13 +121,23 @@ env1 = CartPoleR2Env(init_state=x0.copy(), render_mode='human')
 env1.reset()
 for i in range(1):
     start_time = time()
-    ddp = DDPOptimizer(Nx, Nu, f, g, h)
-    X, U, X_hist, U_hist, J_hist = ddp.optimize(x0, x_goal, N=N, full_output=True)
+    ddp = DDPOptimizer(
+        Nx, Nu,
+        f, g, h,
+        max_iters=max_iters
+    )
+    X, U, X_hist, U_hist, J_hist = ddp.optimize(
+        x0, x_goal, N=N,
+        full_output=True
+    )
+    print(X)
+    input()
     print("Finished optimization in {:.2f}s".format(time() - start_time))
 
     # input('Press "Enter" to start.. ..')
     for t in range(len(U)):
         env1.step(action=np.float32(U[t][0]))
+        print(env1.state)
     x_0 = env1.state
     # env1.step(action=0.0)
 
