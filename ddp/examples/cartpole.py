@@ -1,3 +1,4 @@
+import os
 import sympy as sym
 import numpy as np
 from time import time
@@ -24,7 +25,12 @@ l = 0.25
 G = 9.8
 # dt = 0.05
 dt = 0.01
-friccoeff = [0.5, 0.05]
+friccoeff = np.array([0.5, 0.05])
+friccoeff = None
+if friccoeff is None:
+    damp_fric = False
+else:
+    damp_fric = True
 
 # dynamics
 def f(x, u, constrain=False):
@@ -43,11 +49,14 @@ def f(x, u, constrain=False):
     # Friction is neglected.
 
     # Eq. (23)
-    temp = (F + mp * l * theta_dot**2 * sin_theta) / (mc + mp) #- x_dot*friccoeff[0]/mc
+    temp = (F + mp * l * theta_dot**2.0 * sin_theta) / (mc + mp)
+    if damp_fric:
+        temp -= x_dot*friccoeff[0]/mc
     numerator = G * sin_theta - cos_theta * temp
     denominator = l * (4.0 / 3.0 - mp * cos_theta**2 / (mc + mp))
-    theta_dot_dot = numerator / denominator #- theta_dot*friccoeff[1]/mp
-
+    theta_dot_dot = numerator / denominator
+    if damp_fric:
+        theta_dot_dot -= theta_dot*friccoeff[1]/mp
     # Eq. (24)
     x_dot_dot = temp - mp * l * theta_dot_dot * cos_theta / (mc + mp)
 
@@ -67,23 +76,28 @@ def f(x, u, constrain=False):
 
 # instantaneous cost
 def g(x, u, x_goal):
-    # error = x - x_goal
-    # Q = np.eye(len(x))
+    error = x - x_goal
+    Q = np.eye(len(x))
     # # # Q[0, 0] = 5000
-    # Q[0, 0] = 0
-    # Q[1, 1] = 0.1
-    # Q[2, 2] = 1.5
-    # Q[3, 3] = 0.1
+    Q[0, 0] = 0.01
+    Q[1, 1] = 0
+    Q[2, 2] = 15
+    Q[3, 3] = 0.5
+    # Q = np.zeros((4,4))
     # R = 15 * np.eye(len(u))
-    R = 0.3 * np.eye(len(u))
+    R = 0.1 * np.eye(len(u))
+    alpha = 0.1
+    x_scale = 11.0
+    xlim_cost = 0.0
+    xlim_cost = sym.Matrix([alpha*alpha*(sym.cosh(x[0]/alpha/x_scale) - 1)])
     # a_cost = 0.25
     # ctrl_cost = 0.01*a_cost*a_cost*(sym.cosh(u[0]/a_cost)-1)
     # ctrl_cost = sym.Matrix([ctrl_cost])
     # print(type(error.T @ Q @ error))
     # print(type(sym.Matrix([ctrl_cost])))
     # return error.T @ Q @ error + ctrl_cost
-    return u.T @ R @ u
-    # return error.T @ Q @ error + u.T @ R @ u
+    # return u.T @ R @ u
+    return error.T @ Q @ error + u.T @ R @ u #+ xlim_cost
 
 
 # final cost
@@ -91,22 +105,29 @@ def h(x, x_goal):
     error = x - x_goal
     Q = 100 * np.eye(len(x))
     # Q[0, 0] = 5000
-    Q[0, 0] = 100
-    Q[1, 1] = 100
-    Q[2, 2] = 15000
-    Q[3, 3] = 300
+    
+    # Q[0, 0] = 0
+    # Q[1, 1] = 100
+    # Q[2, 2] = 25000
+    # Q[3, 3] = 3000
+
+    Q[0, 0] = 0
+    Q[1, 1] = 0
+    Q[2, 2] = 0
+    Q[3, 3] = 0
 
     return error.T @ Q @ error
 
 
 # trajectory parameters
-max_iters = 400
+max_iters = 2500
 N = 500  # trajectory points
 Nx = 4  # state dimension
 Nu = 1  # control dimesions
 
 # starting state
 x0 = np.array([0.0, 0.0, np.pi, 0.0])
+# x0 = np.array([0.0, 0.0, 0.0, 0.0])
 # x0 = np.array([0.0, 0.0, np.sin(0.0), np.cos(0.0), 0.0])
 
 # goal state we want to reach
@@ -117,7 +138,7 @@ print("Goal state", x_goal)
 
 # # Create and run optimizer with random intialization
 # print("Starting optimization")
-env1 = CartPoleR2Env(init_state=x0.copy(), render_mode='human')
+env1 = CartPoleR2Env(init_state=x0.copy(), friccoeff=friccoeff, render_mode='human')
 env1.reset()
 for i in range(1):
     start_time = time()
@@ -136,26 +157,34 @@ for i in range(1):
 
     # input('Press "Enter" to start.. ..')
     for t in range(len(U)):
-        env1.step(action=np.float32(U[t][0]))
-        print(env1.state)
+        env1.step(action=U[t][0])
+        # print(f"{t}_state = {env1.state}")
+    
+    print(f"final_state = {env1.state}")
+    print(f"n_steps = {t+1}")
     x_0 = env1.state
     # env1.step(action=0.0)
 
 # for i in range(10000):
-    # action = 0.1*np.sin(i)
-    # # if abs(env1.state[0]) < 1e-3:
-    # #     action = 1
-    # # else:
-    # #     action = -int(env1.state[0]/abs(env1.state[0]))+1
-    # #     # print(int(env1.state[0]/abs(env1.state[0])))
-    # # if i < 10:
-    # #     action = 2
-    # # print(env1.state[0])
-    # env1.step(action=action)
-    # print(i)
+#     action = 1*np.sin(i/10)
+#     # if abs(env1.state[0]) < 1e-3:
+#     #     action = 1
+#     # else:
+#     #     action = -int(env1.state[0]/abs(env1.state[0]))+1
+#     #     # print(int(env1.state[0]/abs(env1.state[0])))
+#     # if i < 10:
+#     #     action = 2
+#     # print(env1.state[0])
+#     env1.step(action=action)
+#     print(i)
 
 # plot results
 if with_plots:
+    img_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        'img/'
+    )
+
     print("Plotting results")
 
     fig, ax = plt.subplots(3, 1, figsize=(4, 8))
@@ -174,4 +203,4 @@ if with_plots:
     ax[2].set_title("Trajectory cost")
     ax[2].set_xlabel("Iteration")
     plt.tight_layout()
-    plt.savefig("ddp_cartpole.png")
+    plt.savefig(img_dir + "ddp_cartpole.jpg")

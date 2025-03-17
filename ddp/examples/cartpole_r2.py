@@ -86,7 +86,7 @@ class CartPoleR2Env(gymnasium.Env[np.ndarray, Union[int, np.ndarray]]):
         "render_fps": 100,
     }
 
-    def __init__(self, init_state=None, render_mode: Optional[str] = None):
+    def __init__(self, init_state=None, friccoeff=None, render_mode: Optional[str] = None):
         self.gravity = 9.8
         self.masscart = 1.0
         self.masspole = 0.01
@@ -96,7 +96,11 @@ class CartPoleR2Env(gymnasium.Env[np.ndarray, Union[int, np.ndarray]]):
         self.force_mag = 10.0
         self.tau = 0.01  # seconds between state updates
         self.kinematics_integrator = "euler"
-        self.friccoeff = [1, 0.05]
+        self.friccoeff = friccoeff
+        if friccoeff is None:
+            self.damp_fric = False
+        else:
+            self.damp_fric = True
 
         # Angle at which to fail the episode
         self.theta_threshold_radians = 12 * 2 * math.pi / 360
@@ -148,11 +152,15 @@ class CartPoleR2Env(gymnasium.Env[np.ndarray, Union[int, np.ndarray]]):
         # For the interested reader:
         # https://coneural.org/florian/papers/05_cart_pole.pdf
         temp = (
-            force + self.polemass_length * theta_dot**2 * sintheta
-        ) / self.total_mass #- x_dot*self.friccoeff[0]/self.masscart
+            force + self.polemass_length * theta_dot**2.0 * sintheta
+        ) / self.total_mass
+        if self.damp_fric:
+            temp -= x_dot*self.friccoeff[0]/self.masscart
         thetaacc = (self.gravity * sintheta - costheta * temp) / (
             self.length * (4.0 / 3.0 - self.masspole * costheta**2 / self.total_mass)
-        ) #- theta_dot*self.friccoeff[1]/self.masspole
+        )
+        if self.damp_fric:
+            thetaacc -= theta_dot*self.friccoeff[1]/self.masspole
         xacc = temp - self.polemass_length * thetaacc * costheta / self.total_mass
 
         # # Eq. (23)
@@ -183,12 +191,13 @@ class CartPoleR2Env(gymnasium.Env[np.ndarray, Union[int, np.ndarray]]):
 
         self.state = (x, x_dot, theta, theta_dot)
 
-        terminated = bool(
-            x < -self.x_threshold
-            or x > self.x_threshold
-            or theta < -self.theta_threshold_radians
-            or theta > self.theta_threshold_radians
-        )
+        # terminated = bool(
+        #     x < -self.x_threshold
+        #     or x > self.x_threshold
+        #     or theta < -self.theta_threshold_radians
+        #     or theta > self.theta_threshold_radians
+        # )
+        terminated = False
 
         if not terminated:
             reward = 1.0
@@ -262,10 +271,18 @@ class CartPoleR2Env(gymnasium.Env[np.ndarray, Union[int, np.ndarray]]):
 
         world_width = self.x_threshold * 2
         scale = self.screen_width / world_width
-        polewidth = 10.0
-        polelen = scale * (2 * self.length)
-        cartwidth = 50.0
-        cartheight = 30.0
+        polewidth = scale * 10.0/100
+        polelen = scale * (4 * self.length)
+        cartwidth = scale*50.0/100
+        cartheight = scale*30.0/100
+
+        world_width = self.x_threshold * 5 * 2
+        scale = self.screen_width / world_width
+        l_render = self.length * 2.0
+        polewidth = scale*l_render / 10
+        polelen = scale*l_render
+        cartwidth = scale*l_render / 3
+        cartheight = scale*l_render / 5
 
         if self.state is None:
             return None

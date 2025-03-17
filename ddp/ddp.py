@@ -276,27 +276,58 @@ class DDPOptimizer:
             X_star[0] = X[0].copy()
             # import warnings
             # warnings.simplefilter('error')
-            gamma = 0.2
-            alpha = 0.3
-            for t in range(N):
-                error = X_star[t] - X[t]
-                try:
-                    # test1 = (inv(Quus[t]) @ (Quxs[t] @ error))
-                    U_star[t] = U[t] - gamma * (inv(Quus[t]) @ (alpha * Qus[t] + Quxs[t] @ error))
-                except RuntimeWarning:
-                    input('ERROR')
-                X_star[t + 1] = self.f(X_star[t], U_star[t]).flatten()
-            total_cost = J(X_star, U_star)
-            X = X_star.copy()
-            U = U_star.copy()
+            alpha = 0.23
+            gamma = 0.27
+            reduce_first = True
+            total_cost = last_cost * 1.5
+            i_adjust = 0
+            while (total_cost - last_cost)/last_cost > 0.3:
+                i_adjust += 1
+                if i_adjust > 1:                    
+                    # print(f"last_cost = {last_cost}")
+                    # print(f"total_cost = {total_cost}")
+                    # print(gamma)
+                    # print(alpha)
+                    pass
+                if i_adjust > 50:
+                    print("Adjustment failed.")
+                    input("Press 'Enter' to continue optimization.. ..")
+                    break
 
-            if full_output:
-                X_hist.append(X.copy())
-                U_hist.append(U.copy())
-                cost_hist.append(total_cost)
-            print(total_cost)
+                if reduce_first and alpha < 1e-3:
+                    reduce_first = False
+                    alpha = 0.3
+                    gamma = 0.2
+                for t in range(N):
+                    error = X_star[t] - X[t]
+                    try:
+                        # test1 = (inv(Quus[t]) @ (Quxs[t] @ error))
+                        U_star[t] = U[t] - gamma * (inv(Quus[t]) @ (alpha * Qus[t] + Quxs[t] @ error))
+                    except RuntimeWarning:
+                        input('ERROR')
+                    X_star[t + 1] = self.f(X_star[t], U_star[t]).flatten()
+                total_cost = J(X_star, U_star)
+                X = X_star.copy()
+                U = U_star.copy()
+
+                if full_output:
+                    X_hist.append(X.copy())
+                    U_hist.append(U.copy())
+                    cost_hist.append(total_cost)
+                if reduce_first:
+                    alpha *= 0.707
+                else:
+                    gamma *= 0.707
+                    alpha *= 0.707
+                # break
+            # verbose
+            if i % 10 == 0:
+                print("==========================")
+                print(f"iter = {i}  |   n_adjust = {i_adjust}")
+                print(f"total_cost = {total_cost}")
             # check for convergence at the end of the optimization cylcle
             if done or abs(last_cost - total_cost) < self.tolerance:
+                # pass
                 break
             last_cost = total_cost
         time_taken = time() - start
