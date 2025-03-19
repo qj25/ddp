@@ -4,9 +4,7 @@ import numpy as np
 from time import time
 
 from ddp import DDPOptimizer
-from cartpole_r import CartPoleREnv
-from cartpole_r2 import CartPoleR2Env
-from cartpole_og import CartPoleOGEnv
+from cartpole_simrender import CartPoleR2Env
 
 with_plots = False
 try:
